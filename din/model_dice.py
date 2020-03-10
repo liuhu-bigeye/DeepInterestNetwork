@@ -45,18 +45,18 @@ class Model(object):
 
     hist_i =attention(i_emb, h_emb, self.sl)
     #-- attention end ---
-    
-    hist_i = tf.layers.batch_normalization(inputs = hist_i)
-    hist_i = tf.reshape(hist_i, [-1, hidden_units], name='hist_bn')
+
+    hist_i = tf.layers.batch_normalization(inputs = hist_i, name='hist_bn')
+    hist_i = tf.reshape(hist_i, [-1, hidden_units])
     hist_i = tf.layers.dense(hist_i, hidden_units, name='hist_fcn')
 
     u_emb_i = hist_i
-    
+
     hist_j =attention(j_emb, h_emb, self.sl)
     #-- attention end ---
-    
-    hist_j = tf.layers.batch_normalization(inputs = hist_j)
-    hist_j = tf.reshape(hist_j, [-1, hidden_units], name='hist_bn')
+
+    hist_j = tf.layers.batch_normalization(inputs = hist_j, name='hist_bn', reuse=True)
+    hist_j = tf.reshape(hist_j, [-1, hidden_units])
     hist_j = tf.layers.dense(hist_j, hidden_units, name='hist_fcn', reuse=True)
 
     u_emb_j = hist_j
@@ -84,7 +84,7 @@ class Model(object):
     d_layer_3_j = tf.reshape(d_layer_3_j, [-1])
     x = i_b - j_b + d_layer_3_i - d_layer_3_j # [B]
     self.logits = i_b + d_layer_3_i
-    
+
     # prediciton for selected items
     # logits for selected item:
     item_emb_all = tf.concat([
@@ -96,9 +96,9 @@ class Model(object):
     item_emb_sub = tf.tile(item_emb_sub, [predict_batch_size, 1, 1])
     hist_sub =attention_multi_items(item_emb_sub, h_emb, self.sl)
     #-- attention end ---
-    
+
     hist_sub = tf.layers.batch_normalization(inputs = hist_sub, name='hist_bn', reuse=tf.AUTO_REUSE)
-    # print hist_sub.get_shape().as_list() 
+    # print hist_sub.get_shape().as_list()
     hist_sub = tf.reshape(hist_sub, [-1, hidden_units])
     hist_sub = tf.layers.dense(hist_sub, hidden_units, name='hist_fcn', reuse=tf.AUTO_REUSE)
 
@@ -116,7 +116,7 @@ class Model(object):
     self.logits_sub = tf.reshape(self.logits_sub, [-1, predict_ads_num, 1])
     #-- fcn end -------
 
-    
+
     self.mf_auc = tf.reduce_mean(tf.to_float(x > 0))
     self.score_i = tf.sigmoid(i_b + d_layer_3_i)
     self.score_j = tf.sigmoid(j_b + d_layer_3_j)
@@ -167,7 +167,7 @@ class Model(object):
         self.sl: uij[4],
         })
     return u_auc, socre_p_and_n
-  
+
   def test(self, sess, uij):
     return sess.run(self.logits_sub, feed_dict={
         self.u: uij[0],
@@ -176,7 +176,7 @@ class Model(object):
         self.hist_i: uij[3],
         self.sl: uij[4],
         })
-  
+
 
   def save(self, sess, path):
     saver = tf.train.Saver()
@@ -206,7 +206,7 @@ def attention(queries, keys, keys_length):
   d_layer_2_all = tf.layers.dense(d_layer_1_all, 40, activation=tf.nn.sigmoid, name='f2_att', reuse=tf.AUTO_REUSE)
   d_layer_3_all = tf.layers.dense(d_layer_2_all, 1, activation=None, name='f3_att', reuse=tf.AUTO_REUSE)
   d_layer_3_all = tf.reshape(d_layer_3_all, [-1, 1, tf.shape(keys)[1]])
-  outputs = d_layer_3_all 
+  outputs = d_layer_3_all
   # Mask
   key_masks = tf.sequence_mask(keys_length, tf.shape(keys)[1])   # [B, T]
   key_masks = tf.expand_dims(key_masks, 1) # [B, 1, T]
@@ -227,7 +227,7 @@ def attention(queries, keys, keys_length):
 def attention_multi_items(queries, keys, keys_length):
   '''
     queries:     [B, N, H] N is the number of ads
-    keys:        [B, T, H] 
+    keys:        [B, T, H]
     keys_length: [B]
   '''
   queries_hidden_units = queries.get_shape().as_list()[-1]
@@ -242,7 +242,7 @@ def attention_multi_items(queries, keys, keys_length):
   d_layer_2_all = tf.layers.dense(d_layer_1_all, 40, activation=tf.nn.sigmoid, name='f2_att', reuse=tf.AUTO_REUSE)
   d_layer_3_all = tf.layers.dense(d_layer_2_all, 1, activation=None, name='f3_att', reuse=tf.AUTO_REUSE)
   d_layer_3_all = tf.reshape(d_layer_3_all, [-1, queries_nums, 1, max_len])
-  outputs = d_layer_3_all 
+  outputs = d_layer_3_all
   # Mask
   key_masks = tf.sequence_mask(keys_length, max_len)   # [B, T]
   key_masks = tf.tile(key_masks, [1, queries_nums])
